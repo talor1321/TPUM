@@ -35,8 +35,33 @@ module TPUM_FSM (
      
     
     logic [4:0] state , next_state;
-    logic [31:0] reg_a , reg_b;
+    // R1 and R2 registers
+    logic [1023:0] reg_r1 , reg_r2;
+    logic [1023:0] next_reg_r1 , next_reg_r2;
+    logic [1023:0] next_reg_ra , next_reg_ra;
     
+    // RX registers from XBOX
+    logic [31:0] RX_vert_dim_a; 
+    logic [31:0] RX_vert_dim_b;
+    logic [31:0] RX_horz_dim_a;
+    logic [31:0] RX_horz_dim_b;
+    logic [31:0] RX_format;
+    logic [31:0] RX_tpum_mode;
+    logic [31:0] RX_tpum_start;
+    logic [31:0] RX_base_pt_a;
+    logic [31:0] RX_base_pt_b;  
+    logic [31:0] RX_base_pt_c;
+
+    // Registers in the TPUM unit
+    // registers for saving the address pointers
+    logic [31:0] RX_curr_pt_a , next_RX_curr_pt_a;
+    logic [31:0] RX_curr_pt_b , next_RX_curr_pt_b;
+    logic [31:0] RX_curr_pt_c , next_RX_curr_pt_c;
+
+
+    assign start = RX_tpum_start[0];
+    assign op_mode = RX_tpum_mode[2:0];
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= IDLE;
@@ -58,7 +83,7 @@ module TPUM_FSM (
             INITR1: begin
                 next_state = INITR1;
 
-                if (xbox_read_ready) begin
+                if (xbox_read_ready) begin // depends on the XBOX protocol
                     next_state = INITR2;
                 end 
                 
@@ -66,7 +91,7 @@ module TPUM_FSM (
 
             INITR2: begin
                 next_state = INITR2;
-                
+
                 if (xbox_read_ready) begin
                     case (op_mode) 
                         GEMM_OP: begin
@@ -101,28 +126,34 @@ module TPUM_FSM (
 
 
     always @(*) begin
+        reg_r1_read_enable = 0;
+        reg_r2_read_enable = 0;
+        next_RX_curr_pt_a = RX_curr_pt_a;
+        next_reg_r1 = reg_r1;
+        reg_r1_read_enable = 0;
+        reg_r2_read_enable = 0;
+        next_RX_curr_pt_b = RX_curr_pt_b;
+        next_reg_r2 = reg_r2;
+
         case (state)
             IDLE: begin
                 //TODO: turn off all logic parts
             end
 
             INITR1: begin
-                reg_r1_read_enable = 0;
-                reg_r2_read_enable = 0;
-
                 if (xbox_read_ready) begin
                     reg_r1_read_enable = 1;
+                    next_RX_curr_pt_a = RX_base_pt_a;
+                    //next_reg_r1 = XBOX[RX_base_pt_a];
                 end 
                 
             end
 
             INITR2: begin
-                reg_r1_read_enable = 0;
-                reg_r2_read_enable = 0;
-
                 if (xbox_read_ready) begin
                     reg_r2_read_enable = 1;
-
+                    next_RX_curr_pt_b = RX_base_pt_b;
+                    //next_reg_r2 = XBOX[RX_base_pt_b];
                 end
             end
             
