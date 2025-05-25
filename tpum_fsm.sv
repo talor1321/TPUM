@@ -46,6 +46,7 @@ module TPUM_FSM (
     logic [31:0] r2_words   [0:31];
     logic [31:0] ra_words   [0:31];
 
+    logic [5:0] state , next_state;
     
 
 
@@ -238,20 +239,20 @@ module TPUM_FSM (
             end
 
             INITR1: begin
-                if (xbox_read_ready) begin
-                    reg_r1_read_enable = 1;
-                    next_RF_curr_pt_a = RF_base_pt_a;
-                    //next_reg_r1 = XBOX[RF_base_pt_a];
-                end 
+                //if (xbox_read_ready) begin
+                //    reg_r1_read_enable = 1;
+                //    next_RF_curr_pt_a = RF_base_pt_a;
+                //    //next_reg_r1 = XBOX[RF_base_pt_a];
+                //end 
                 
             end
 
             INITR2: begin
-                if (xbox_read_ready) begin
-                    reg_r2_read_enable = 1;
-                    next_RF_curr_pt_b = RF_base_pt_b;
-                    //next_reg_r2 = XBOX[RF_base_pt_b];
-                end
+                //if (xbox_read_ready) begin
+                //    reg_r2_read_enable = 1;
+                //    next_RF_curr_pt_b = RF_base_pt_b;
+                //    //next_reg_r2 = XBOX[RF_base_pt_b];
+                //end
             end
             
             GEMN: begin
