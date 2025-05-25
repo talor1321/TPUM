@@ -33,14 +33,15 @@ module TPUM_FSM (
     // 2) Register file mapping
     // 0–7    : Control registers
     // 8      : Bypass register(from risc)
-    // 9–15   : TEMP registers
+    // 9      : Done register
+    // 10–15   : TEMP registers
     // 16–47  : R1 vector
     // 48–79  : R2 vector
     // 80–111 : RA vector
     //==================================================
     logic [31:0] RF_dim_a, RF_dim_b, RF_format, RF_tpum_mode;
     logic [31:0] RF_tpum_start, RF_base_pt_a, RF_base_pt_b, RF_base_pt_c;
-    logic [31:0] RF_bypass_risc;
+    logic [31:0] RF_bypass_risc , RF_done;
     logic [31:0] temp_regs [0:6];
     // packed array
     logic [31:0] r1_words   [0:31];
@@ -78,7 +79,7 @@ module TPUM_FSM (
     integer i;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            RF_dim_a <= 0; RF_dim_b <= 0; RF_format <= 0; RF_tpum_mode <= 0;
+            RF_dim_a <= 0; RF_dim_b <= 0; RF_format <= 0; RF_tpum_mode <= 0; RF_done <= 0;
             RF_tpum_start <= 0; RF_base_pt_a <= 0; RF_base_pt_b <= 0; RF_base_pt_c <= 0;RF_bypass_risc <=0;
             for (i = 0; i < 32; i++) begin
                 r1_words[i] <= 0;
@@ -100,9 +101,10 @@ module TPUM_FSM (
                 7'd6: RF_base_pt_b   <= apb.pwdata;
                 7'd7: RF_base_pt_c   <= apb.pwdata;
                 7'd8: RF_bypass_risc <= apb.pwdata;
+                7'd9: RF_done <= apb.pwdata;
                 default: begin
-                if (apb_RF_index >= 9  && apb_RF_index <= 15)
-                    temp_regs[apb_RF_index - 9] <= apb.pwdata;
+                if (apb_RF_index >= 10  && apb_RF_index <= 15)
+                    temp_regs[apb_RF_index - 10] <= apb.pwdata;
                 else if (apb_RF_index >= 16 && apb_RF_index <= 47)
                     r1_words[apb_RF_index - 16] <= apb.pwdata;
                 else if (apb_RF_index >= 48 && apb_RF_index <= 79)
@@ -133,9 +135,10 @@ module TPUM_FSM (
                 7'd6: read_data = RF_base_pt_b;
                 7'd7: read_data = RF_base_pt_c;
                 7'd8: read_data = RF_bypass_risc;
+                7'd9: read_data = RF_done;
                 default: begin
-                  if (apb_RF_index >= 9  && apb_RF_index <= 15)
-                      read_data = temp_regs[apb_RF_index - 9];
+                  if (apb_RF_index >= 10  && apb_RF_index <= 15)
+                      read_data = temp_regs[apb_RF_index - 10];
                   else if (apb_RF_index >= 16 && apb_RF_index <= 47)
                       read_data = r1_words[apb_RF_index - 16];
                   else if (apb_RF_index >= 48 && apb_RF_index <= 79)
