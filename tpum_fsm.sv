@@ -1,15 +1,16 @@
 module TPUM_FSM (
-    // INPUTS
     input clk,
     input rst_n,
-    input [1023:0] xbox_data, //pum_mem_rdata
-    //input [16*8*5-1:0] apb_input, //APB_BUS.Slave apb
+    
+    // APB interface
+    APB_BUS.Slave     apb,         // APB slave interface bundling psel, penable, pwrite, etc.
 
-    // OUTPUTS
-    output xbox_rd, //pum_mem_rd
-    output xbox_wr, //pum_mem_wr
-    output [13:0] xbox_addr, //pum_mem_addr
-    output [1023:0] xbox_data, //pum_mem_wdata
+    // XBOX/PUM interface (preserved, but unused for now)
+    input  [1023:0]   pum_XBOX_rdata, // Input data from external memory
+    output            pum_rd_from_XBOX,    // Read enable signal to memory
+    output            pum_wr_To_XBOX,    // Write enable signal to memory
+    output [13:0]     pum_XBOX_addr,  // Memory address to read/write
+    output [1023:0]   pum_XBOX_wdata  // Data to write to memory
 );
 
     typedef enum logic [5:0] {
@@ -27,42 +28,144 @@ module TPUM_FSM (
         PUM_OP    = 3'b100;
     } operations;
      
-    
-    logic [4:0] state , next_state;
-    // R1 and R2 registers
-    logic [1023:0] reg_r1 , reg_r2;
-    logic [1023:0] next_reg_r1 , next_reg_r2;
-    logic [1023:0] next_reg_ra , next_reg_ra;
-    
-    // RF registers 
-    logic [31:0] RF_dim_a; // [9:0] = vertical , [19:10] = horizontal(10 bits each)
-    logic [31:0] RF_dim_b; // [9:0] = vertical , [19:10] = horizontal(10 bits each)
-    logic [31:0] RF_format;
-    logic [31:0] RF_tpum_mode;
-    logic [31:0] RF_tpum_start;
-    logic [31:0] RF_base_pt_a;
-    logic [31:0] RF_base_pt_b;  
-    logic [31:0] RF_base_pt_c;
+    //==================================================
+    // 2) Register file mapping
+    // 0–7    : Control registers
+    // 8      : Bypass register(from risc)
+    // 9–15   : TEMP registers
+    // 16–47  : R1 vector
+    // 48–79  : R2 vector
+    // 80–111 : RA vector
+    //==================================================
+    logic [31:0] RF_dim_a, RF_dim_b, RF_format, RF_tpum_mode;
+    logic [31:0] RF_tpum_start, RF_base_pt_a, RF_base_pt_b, RF_base_pt_c;
+    logic [31:0] RF_bypass_risc;
+    logic [31:0] temp_regs [0:6];
+    // packed array
+    logic [31:0] r1_words   [0:31];
+    logic [31:0] r2_words   [0:31];
+    logic [31:0] ra_words   [0:31];
 
-    // Registers in the TPUM unit
-    // registers for saving the address pointers
-    logic [31:0] RF_curr_pt_a , next_RF_curr_pt_a;
-    logic [31:0] RF_curr_pt_b , next_RF_curr_pt_b;
-    logic [31:0] RF_curr_pt_c , next_RF_curr_pt_c;
+    
 
-    // APB
-    assign rm_example_addr = apb.paddr[21:0];
-    assign is_rm_example_reg_addr = apb.psel && rm_example_addr[21:21] == 1'b1;
-    assign is_rm_example_mem_addr = apb.psel && rm_example_addr[21:21] != 1'b1;
-    assign reg_idx = rm_example_addr[6:2];
-    assign apb_setup_wr = apb.psel &&  apb.pwrite  ;
-    assign apb_setup_rd = apb.psel && !apb.pwrite  ;
+
+
+    //==================================================
+    // 1) APB protocol setup phase: latch address and write enable
+    //==================================================
+    logic [6:0] apb_RF_index;     // Word-aligned index (up to 128 registers)
+
     assign apb_access = apb.psel && apb.penable ;
-    assign apb_wr_reg = apb_setup_wr && is_rm_example_reg_addr && !ready ;
-    assign regs_rd_access = apb_setup_rd && is_rm_example_reg_addr && !ready ;
+    assign apb_setup_wr = apb_access &&  apb.pwrite ;
+    assign apb_setup_rd = apb_access && !apb.pwrite ;
 
-    assign start = RF_tpum_start[0];
-    assign op_mode = RF_tpum_mode[2:0];
+    
+
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+        apb_RF_index <= 7'd0;
+        end else if (apb.psel && !apb.penable) begin
+        apb_RF_index <= apb.paddr[7:1];  // Uses [7:1] → shift by 2 and drops bit 0 (APB must align to 4B)
+        end
+    end
+
+    //==================================================
+    // 3) Register write operation
+    //==================================================
+    integer i;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            RF_dim_a <= 0; RF_dim_b <= 0; RF_format <= 0; RF_tpum_mode <= 0;
+            RF_tpum_start <= 0; RF_base_pt_a <= 0; RF_base_pt_b <= 0; RF_base_pt_c <= 0;RF_bypass_risc <=0;
+            for (i = 0; i < 32; i++) begin
+                r1_words[i] <= 0;
+                r2_words[i] <= 0;
+                ra_words[i] <= 0;
+            end
+            for (i = 0; i < 8; i++) begin
+                temp_regs[i] <= 0;
+            end
+
+        end else if (apb_setup_wr) begin
+            case (apb_RF_index)
+                7'd0: RF_dim_a       <= apb.pwdata;
+                7'd1: RF_dim_b       <= apb.pwdata;
+                7'd2: RF_format      <= apb.pwdata;
+                7'd3: RF_tpum_mode   <= apb.pwdata;
+                7'd4: RF_tpum_start  <= apb.pwdata;
+                7'd5: RF_base_pt_a   <= apb.pwdata;
+                7'd6: RF_base_pt_b   <= apb.pwdata;
+                7'd7: RF_base_pt_c   <= apb.pwdata;
+                7'd8: RF_bypass_risc <= apb.pwdata;
+                default: begin
+                if (apb_RF_index >= 9  && apb_RF_index <= 15)
+                    temp_regs[apb_RF_index - 9] <= apb.pwdata;
+                else if (apb_RF_index >= 16 && apb_RF_index <= 47)
+                    r1_words[apb_RF_index - 16] <= apb.pwdata;
+                else if (apb_RF_index >= 48 && apb_RF_index <= 79)
+                    r2_words[apb_RF_index - 48] <= apb.pwdata;
+                else if (apb_RF_index >= 80 && apb_RF_index <= 111)
+                    ra_words[apb_RF_index - 80] <= apb.pwdata;
+                end
+            endcase
+        end
+    end
+
+
+    //==================================================
+    // 4) Register read multiplexer
+    //==================================================
+    logic [31:0] read_data;
+    always_comb begin
+        read_data = 32'd0;
+        
+        if (apb_setup_rd) begin
+            case (apb_RF_index)
+                7'd0: read_data = RF_dim_a;
+                7'd1: read_data = RF_dim_b;
+                7'd2: read_data = RF_format;
+                7'd3: read_data = RF_tpum_mode;
+                7'd4: read_data = RF_tpum_start;
+                7'd5: read_data = RF_base_pt_a;
+                7'd6: read_data = RF_base_pt_b;
+                7'd7: read_data = RF_base_pt_c;
+                7'd8: read_data = RF_bypass_risc;
+                default: begin
+                if (apb_RF_index >= 9  && apb_RF_index <= 15)
+                    read_data = temp_regs[apb_RF_index - 9];
+                else if (apb_RF_index >= 16 && apb_RF_index <= 47)
+                    read_data = r1_words[apb_RF_index - 16];
+                else if (apb_RF_index >= 48 && apb_RF_index <= 79)
+                    read_data = r2_words[apb_RF_index - 48];
+                else if (apb_RF_index >= 80 && apb_RF_index <= 111)
+                    read_data = ra_words[apb_RF_index - 80];
+                end else begin
+                    read_data = 32b'x;
+                end
+            endcase
+        end
+    end
+
+
+    //==================================================
+    // 5) Drive APB response signals
+    //==================================================
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+        apb.prdata  <= 32'd0;
+        apb.pready  <= 1'b0;
+        apb.pslverr <= 1'b0;
+        end else begin
+        apb.pready  <= apb_access;
+        apb.prdata  <= read_data;
+        apb.pslverr <= 1'b0;  // No error reporting
+        end
+    end
+
+
+
+
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -128,14 +231,6 @@ module TPUM_FSM (
 
 
     always @(*) begin
-        reg_r1_read_enable = 0;
-        reg_r2_read_enable = 0;
-        next_RF_curr_pt_a = RF_curr_pt_a;
-        next_reg_r1 = reg_r1;
-        reg_r1_read_enable = 0;
-        reg_r2_read_enable = 0;
-        next_RF_curr_pt_b = RF_curr_pt_b;
-        next_reg_r2 = reg_r2;
 
         case (state)
             IDLE: begin
