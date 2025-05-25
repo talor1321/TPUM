@@ -181,38 +181,38 @@ module TPUM_FSM (
             IDLE: begin
                 next_state = IDLE;
                 //TODO: turn off all logic parts
-                if (start) begin
-                    next_state = INITR1; 
-                end
+                //if (start) begin
+                //    next_state = INITR1; 
+                //end
             end
 
             INITR1: begin
                 next_state = INITR1;
 
-                if (xbox_read_ready) begin // depends on the XBOX protocol
-                    next_state = INITR2;
-                end 
+                //if (xbox_read_ready) begin // depends on the XBOX protocol
+                //    next_state = INITR2;
+                //end 
                 
             end
 
             INITR2: begin
                 next_state = INITR2;
 
-                if (xbox_read_ready) begin
-                    case (op_mode) 
-                        GEMM_OP: begin
-                            next_state = GEMM;
-                        end
+                //if (xbox_read_ready) begin
+                //    case (op_mode) 
+                //        GEMM_OP: begin
+                //            next_state = GEMM;
+                //        end
             
-                        BNN_OP: begin
-                            next_state = BNN;
-                        end
+                //        BNN_OP: begin
+                //            next_state = BNN;
+                //        end
 
-                        PUM_OP: begin
-                            next_state = PUM;
-                        end
-                    end  
-                end
+                //        PUM_OP: begin
+                //            next_state = PUM;
+                //        end
+                //    end  
+                //end
             end
             
             GEMN: begin
