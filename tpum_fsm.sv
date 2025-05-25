@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 module TPUM_FSM (
     input clk,
     input rst_n,
@@ -14,18 +15,18 @@ module TPUM_FSM (
 );
 
     typedef enum logic [5:0] {
-        IDLE   = 6'b000001;
-        INITR1 = 6'b000010;
-        INITR2 = 6'b000100;
-        GEMN   = 6'b001000;
-        BNN    = 6'b010000;
-        PUM    = 6'b100000;
+        IDLE   = 6'b000001,
+        INITR1 = 6'b000010,
+        INITR2 = 6'b000100,
+        GEMN   = 6'b001000,
+        BNN    = 6'b010000,
+        PUM    = 6'b100000
     } states;
 
     typedef enum logic [2:0] {
-        GEMN_OP   = 3'b001;
-        BNN_OP    = 3'b010;
-        PUM_OP    = 3'b100;
+        GEMN_OP   = 3'b001,
+        BNN_OP    = 3'b010,
+        PUM_OP    = 3'b100
     } operations;
      
     //==================================================
@@ -122,7 +123,7 @@ module TPUM_FSM (
         read_data = 32'd0;
         
         if (apb_setup_rd) begin
-            case (apb_RF_index)
+            case (apb_RF_index) 
                 7'd0: read_data = RF_dim_a;
                 7'd1: read_data = RF_dim_b;
                 7'd2: read_data = RF_format;
@@ -133,16 +134,16 @@ module TPUM_FSM (
                 7'd7: read_data = RF_base_pt_c;
                 7'd8: read_data = RF_bypass_risc;
                 default: begin
-                if (apb_RF_index >= 9  && apb_RF_index <= 15)
-                    read_data = temp_regs[apb_RF_index - 9];
-                else if (apb_RF_index >= 16 && apb_RF_index <= 47)
-                    read_data = r1_words[apb_RF_index - 16];
-                else if (apb_RF_index >= 48 && apb_RF_index <= 79)
-                    read_data = r2_words[apb_RF_index - 48];
-                else if (apb_RF_index >= 80 && apb_RF_index <= 111)
-                    read_data = ra_words[apb_RF_index - 80];
-                end else begin
-                    read_data = 32b'x;
+                  if (apb_RF_index >= 9  && apb_RF_index <= 15)
+                      read_data = temp_regs[apb_RF_index - 9];
+                  else if (apb_RF_index >= 16 && apb_RF_index <= 47)
+                      read_data = r1_words[apb_RF_index - 16];
+                  else if (apb_RF_index >= 48 && apb_RF_index <= 79)
+                      read_data = r2_words[apb_RF_index - 48];
+                  else if (apb_RF_index >= 80 && apb_RF_index <= 111)
+                      read_data = ra_words[apb_RF_index - 80];
+                  //else 
+                      //read_data = x;
                 end
             endcase
         end
@@ -176,99 +177,99 @@ module TPUM_FSM (
         end    
     end
     
-    always @(*) begin
-        case (state)
-            IDLE: begin
-                next_state = IDLE;
-                //TODO: turn off all logic parts
-                //if (start) begin
-                //    next_state = INITR1; 
-                //end
-            end
+    // always @(*) begin
+    //     case (state)
+    //         IDLE: begin
+    //             next_state = IDLE;
+    //             //TODO: turn off all logic parts
+    //             //if (start) begin
+    //             //    next_state = INITR1; 
+    //             //end
+    //         end
 
-            INITR1: begin
-                next_state = INITR1;
+    //         INITR1: begin
+    //             next_state = INITR1;
 
-                //if (xbox_read_ready) begin // depends on the XBOX protocol
-                //    next_state = INITR2;
-                //end 
+    //             //if (xbox_read_ready) begin // depends on the XBOX protocol
+    //             //    next_state = INITR2;
+    //             //end 
                 
-            end
+    //         end
 
-            INITR2: begin
-                next_state = INITR2;
+    //         INITR2: begin
+    //             next_state = INITR2;
 
-                //if (xbox_read_ready) begin
-                //    case (op_mode) 
-                //        GEMM_OP: begin
-                //            next_state = GEMM;
-                //        end
+    //             //if (xbox_read_ready) begin
+    //             //    case (op_mode) 
+    //             //        GEMM_OP: begin
+    //             //            next_state = GEMM;
+    //             //        end
             
-                //        BNN_OP: begin
-                //            next_state = BNN;
-                //        end
+    //             //        BNN_OP: begin
+    //             //            next_state = BNN;
+    //             //        end
 
-                //        PUM_OP: begin
-                //            next_state = PUM;
-                //        end
-                //    end  
-                //end
-            end
+    //             //        PUM_OP: begin
+    //             //            next_state = PUM;
+    //             //        end
+    //             //    end  
+    //             //end
+    //         end
             
-            GEMN: begin
+    //         GEMN: begin
             
-            end
+    //         end
             
-            BNN: begin
+    //         BNN: begin
             
-            end
+    //         end
 
-            PUM: begin
+    //         PUM: begin
             
-            end
+    //         end
 
 
-    end
+    // end
 
 
-    always @(*) begin
+    // always @(*) begin
 
-        case (state)
-            IDLE: begin
-                //TODO: turn off all logic parts
-            end
+    //     case (state)
+    //         IDLE: begin
+    //             //TODO: turn off all logic parts
+    //         end
 
-            INITR1: begin
-                //if (xbox_read_ready) begin
-                //    reg_r1_read_enable = 1;
-                //    next_RF_curr_pt_a = RF_base_pt_a;
-                //    //next_reg_r1 = XBOX[RF_base_pt_a];
-                //end 
+    //         INITR1: begin
+    //             //if (xbox_read_ready) begin
+    //             //    reg_r1_read_enable = 1;
+    //             //    next_RF_curr_pt_a = RF_base_pt_a;
+    //             //    //next_reg_r1 = XBOX[RF_base_pt_a];
+    //             //end 
                 
-            end
+    //         end
 
-            INITR2: begin
-                //if (xbox_read_ready) begin
-                //    reg_r2_read_enable = 1;
-                //    next_RF_curr_pt_b = RF_base_pt_b;
-                //    //next_reg_r2 = XBOX[RF_base_pt_b];
-                //end
-            end
+    //         INITR2: begin
+    //             //if (xbox_read_ready) begin
+    //             //    reg_r2_read_enable = 1;
+    //             //    next_RF_curr_pt_b = RF_base_pt_b;
+    //             //    //next_reg_r2 = XBOX[RF_base_pt_b];
+    //             //end
+    //         end
             
-            GEMN: begin
+    //         GEMN: begin
             
-            end
+    //         end
             
-            BNN: begin
+    //         BNN: begin
             
-            end
+    //         end
 
-            PUM: begin
+    //         PUM: begin
             
-            end
+    //         end
 
 
-    end
+    // end
 
 
 endmodule
