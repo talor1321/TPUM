@@ -55,6 +55,7 @@ module triple_pum (
     logic [31:0] r1_words   [0:31];
     logic [31:0] r2_words   [0:31];
     logic [31:0] ra_words   [0:31];
+    logic [31:0] next_ra_words   [0:31];
 
     logic [6:0] state , next_state;
     logic [14:0] counter_input_dim , next_counter_input_dim;
@@ -94,7 +95,7 @@ module triple_pum (
             for (i = 0; i < 32; i++) begin
                 r1_words[i] <= 0;
                 r2_words[i] <= 0;
-                ra_words[i] <= 0;
+                //ra_words[i] <= 0;
             end
             for (i = 0; i < 5; i++) begin
                 temp_regs[i] <= 0;
@@ -121,13 +122,22 @@ module triple_pum (
                     r1_words[apb_rf_index - 16] <= apb.pwdata;
                 else if (apb_rf_index >= 48 && apb_rf_index <= 79)
                     r2_words[apb_rf_index - 48] <= apb.pwdata;
-                else if (apb_rf_index >= 80 && apb_rf_index <= 111)
-                    ra_words[apb_rf_index - 80] <= apb.pwdata;
+                //else if (apb_rf_index >= 80 && apb_rf_index <= 111)
+                //    ra_words[apb_rf_index - 80] <= apb.pwdata;
                 end
             endcase
         end
     end
 
+
+    
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            ra_words <= 0;
+        end else begin
+            ra_words <= next_ra_words;  
+        end
+    end
 
     //==================================================
     // 4) Register read multiplexer
@@ -174,13 +184,13 @@ module triple_pum (
     //==================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-        apb.prdata  <= 32'd0;
-        apb.pready  <= 1'b0;
-        apb.pslverr <= 1'b0;
+            apb.prdata  <= 32'd0;
+            apb.pready  <= 1'b0;
+            apb.pslverr <= 1'b0;
         end else begin
-        apb.pready  <= apb_access;
-        apb.prdata  <= read_data;
-        apb.pslverr <= 1'b0;  // No error reporting
+            apb.pready  <= apb_access;
+            apb.prdata  <= read_data;
+            apb.pslverr <= 1'b0;  // No error reporting
         end
     end
 
@@ -207,14 +217,14 @@ module triple_pum (
             r2_words[i] <= 32'd0;
         end
         end else if (pum_rd_from_xbox && !pum_wr_to_xbox) begin
-        if (pum_xbox_sel) begin
-            for (int i = 0; i < 32; i++) begin
-            r1_words[i] <= pum_XBOX_rdata[i*32 +: 32];
-            end
-        end else begin
-            for (int i = 0; i < 32; i++) begin
-            r2_words[i] <= pum_XBOX_rdata[i*32 +: 32];
-            end
+            if (pum_xbox_sel) begin
+                for (int i = 0; i < 32; i++) begin
+                    r1_words[i] <= pum_XBOX_rdata[i*32 +: 32];
+                end
+            end else begin
+                for (int i = 0; i < 32; i++) begin
+                    r2_words[i] <= pum_XBOX_rdata[i*32 +: 32];
+                end
         end
         end
     end
@@ -223,14 +233,17 @@ module triple_pum (
     always_comb begin
         ra_temp = 1024'd0;
         if (!pum_rd_from_xbox && pum_wr_to_xbox) begin
-        for (int i = 0; i < 32; i++) begin
-            ra_temp[i*32 +: 32] = ra_words[i];
-        end
+            for (int i = 0; i < 32; i++) begin
+                ra_temp[i*32 +: 32] = ra_words[i];
+            end
         end
     end
 
     assign pum_xbox_wdata = ra_temp;
 
+    //==================================================
+    // 8) States Registers
+    //==================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= IDLE;
@@ -239,6 +252,22 @@ module triple_pum (
         end    
     end
 
+    //==================================================
+    // 9) Counters Registers
+    //==================================================
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            counter_weights <= 0;
+            counter_input_dim <= 0;
+        end else begin
+            counter_weights <= next_counter_weights;
+            counter_input_dim <= next_counter_input_dim;
+        end    
+    end
+    
+    //==================================================
+    // Calculating the next state
+    //==================================================
     always_comb begin
         case (state)
             IDLE: begin
@@ -305,51 +334,40 @@ module triple_pum (
             end
     end 
 
+    //==================================================
+    // states logic
+    //==================================================
     always_comb begin
         next_counter_input_dim = counter_input_dim;
         next_counter_weights = counter_weights;
+        pum_rd_from_xbox = 0;
+        pum_wr_to_xbox = 0;
+
         case (state)
             IDLE: begin
                 next_counter_input_dim = 0;
                 next_counter_weights = 0;
             end
 
+            LOADR2: begin
+                pum_rd_from_xbox = 1'b1;
+                pum_xbox_sel = 1'b0; // R2
+                //pum_xbox_addr = 0;
+                pum_xbox_addr = rf_base_pt_b + counter_weights;
+                next_counter_weights = counter_weights + 1;
+                next_counter_input_dim = 0;
+            end
+
             LOADR1: begin
                 pum_rd_from_xbox = 1'b1;
-                pum_xbox_sel = 1'b1;
-                pum_xbox_addr = 0;
+                pum_xbox_sel = 1'b1; // R1
+                //pum_xbox_addr = 0;
+                //pum_xbox_addr = rf_base_pt_a + 1024 * counter_input_dim;
+                pum_xbox_addr = rf_base_pt_a + counter_input_dim;
                 next_counter_input_dim = counter_input_dim + 1;
 
 
             
-            end
-
-            LOADR2: begin
-                pum_rd_from_xbox = 1'b1;
-                pum_xbox_sel = 1'b1;
-                pum_xbox_addr = 0;
-                next_counter_weights = counter_weights + 1;
-
-
-                case (rf_tpum_mode[2:0])
-                    GEMM_OP: begin
-                        
-                        
-                    end
-                    BNN_OP: begin //dim
-                        
-                        
-
-                    end
-                    PUM_OP: begin
-                        next_state = PUM;
-                    end
-                    default: begin
-                        // optional : add an error state
-                        next_state = 3'bx;
-                    end
-                endcase
-
             end
         
             GEMN: begin
@@ -357,7 +375,7 @@ module triple_pum (
             end
         
             BNN: begin
-        
+                next_ra_words = 1024'd12;
             end
 
             PUM: begin
@@ -365,16 +383,13 @@ module triple_pum (
             end
             
             DONE: begin
-
+                pum_wr_to_xbox = 1'b1; 
             end
     end 
 
 
   // Monitoring
-  always_comb begin
-    rf_state = state;
-    
-  end
+  //...
 endmodule
 
 
